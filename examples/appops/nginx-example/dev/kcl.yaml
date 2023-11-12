@@ -1,0 +1,4 @@
+kcl_cli_configs:
+  file:
+  - ../base/base.k
+  - ${konfig:KCL_MOD}/models/kube/render/render.k
