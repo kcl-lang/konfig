@@ -7,7 +7,7 @@
 
 set -e
 
-find ./examples -name "kcl.mod" -exec dirname {} \; | while read -r dir; do
+find ./examples -name "main.k" -exec dirname {} \; | while read -r dir; do
     if (cd "$dir" && kcl run); then
         echo "\033[32mTest SUCCESSED - $dir\033[0m\n"
     else
