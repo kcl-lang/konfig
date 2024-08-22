@@ -29,7 +29,7 @@ def find_kcl_mod_files(directory):
     """
     paths_with_kcl_mod = []
     for root, dirs, files in os.walk(directory):
-        if "kcl.mod" in files:
+        if "kcl.mod" in files and "main.k" in files:
             paths_with_kcl_mod.append(root)
     return paths_with_kcl_mod
 
