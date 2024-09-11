@@ -9,5 +9,5 @@
     oci_tag = "1.28"
   [dependencies.konfig]
     name = "konfig"
-    full_name = "konfig_0.6.0"
-    version = "0.6.0"
+    full_name = "konfig_0.7.0"
+    version = "0.7.0"

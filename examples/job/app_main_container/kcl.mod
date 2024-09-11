@@ -1,5 +1,5 @@
 [package]
-name = "nginx-example"
+name = "app_main_container"
 version = "0.0.1"
 
 [dependencies]
