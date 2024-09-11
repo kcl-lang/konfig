@@ -13,7 +13,7 @@
 __pycache__
 __kclcache__
 .kclvm
-
+kcl.mod.lock
 
 # test report
 report/
