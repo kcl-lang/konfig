@@ -1,6 +1,8 @@
 # Konfig
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fkcl-lang%2Fkonfig.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fkcl-lang%2Fkonfig?ref=badge_shield)
 
+> Note: Sync from the [modules](https://github.com/kcl-lang/modules/tree/main/konfig) code repo.
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fkcl-lang%2Fkonfig.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fkcl-lang%2Fkonfig?ref=badge_shield)
 
 [English](README.md) | [Chinese](README-zh.md)
 
