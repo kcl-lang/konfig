@@ -17,7 +17,8 @@ schema JobBackend[inputConfig: frontend.Job]:
     config: frontend.Job = inputConfig
 
     # variables
-    jobName: str = "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
+    jobName: str = config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
+    jobNamespace: str = config.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME).lower()
     app: utils.ApplicationBuilder = utils.ApplicationBuilder {}
     mainContainerDict: {str:}
     mainContainer: {str:}
@@ -48,6 +49,7 @@ schema JobBackend[inputConfig: frontend.Job]:
     jobAttrs: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
             name = jobName
+            namespace = jobNamespace
         }
         spec = {
             activeDeadlineSeconds = config.activeDeadlineSeconds
