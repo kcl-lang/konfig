@@ -160,7 +160,7 @@ ServerBackend converts the user-written front-end model `Server` into a collecti
 |**provider**|[]|||
 |**sidecarContainers**|[{str:}]|||
 |**workloadAttributes** `required`|{str:}||{<br />    metadata = utils.MetadataBuilder(config) \| {<br />        name = workloadName<br />    }<br />    spec = {<br />        replicas = config.replicas<br />        if config.useBuiltInSelector:<br />            selector: {matchLabels: app.selector \| config.selector \| _applicationLabel}<br />        else:<br />            selector: {matchLabels: config.selector}<br />        template = {<br />            metadata = {<br />                if config.useBuiltInLabels:<br />                    labels = app.labels \| _applicationLabel<br />                <br />                **config.podMetadata<br />            }<br />            spec = {<br />                containers = [mainContainer] + (sidecarContainers or [])<br />                initContainers = initContainers<br />                if config.volumes:<br />                    volumes = [utils.to_kube_volume(v) for v in config.volumes if v.volumeSource]<br />                <br />                if config.serviceAccount:<br />                    serviceAccountName = config.serviceAccount.name<br />                <br />            }<br />        }<br />    }<br />}|
-|**workloadName** `required`|str||config.name or "{}{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()|
+|**workloadName** `required`|str||config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()|
 ### Job
 
 Job is the common user interface for one-time jobs, which is defined by Kubernetes Job. Job supports reliable parallel execution of Pods.

@@ -24,7 +24,9 @@ schema ServerBackend[inputConfig: server.Server]:
     # Store the input config parameter, ensure it can be seen in protocol and mixin.
     config: server.Server = inputConfig
     # Workload name.
-    workloadName: str = config.name or "{}{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
+    workloadName: str = config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
+    # Workload namespace
+    workloadNamespace: str = config.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME).lower()
     # App variable contains labels, selector and environments.
     app: utils.ApplicationBuilder = utils.ApplicationBuilder {}
     # Main containers and sidecar contrainers.
@@ -58,6 +60,7 @@ schema ServerBackend[inputConfig: server.Server]:
     workloadAttributes: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
             name = workloadName
+            namespace = workloadNamespace
         }
         spec = {
             replicas = config.replicas
