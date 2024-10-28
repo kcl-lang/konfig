@@ -5,5 +5,5 @@
     version = "1.31.2"
   [dependencies.konfig]
     name = "konfig"
-    full_name = "konfig_0.10.0"
-    version = "0.10.0"
+    full_name = "konfig_0.11.0"
+    version = "0.11.0"
