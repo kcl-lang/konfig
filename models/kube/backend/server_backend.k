@@ -82,6 +82,8 @@ schema ServerBackend[inputConfig: server.Server]:
                     ]
                     if config.serviceAccount:
                         serviceAccountName = config.serviceAccount.name
+                    if config.affinity: 
+                        affinity = config.affinity
                 }
             }
             if config.deploymentStrategy:

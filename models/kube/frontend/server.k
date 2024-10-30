@@ -10,6 +10,7 @@ import models.kube.frontend.sidecar as s
 import models.kube.frontend.strategy
 import models.kube.frontend.storage
 import models.kube.frontend.deployment
+import models.kube.frontend.affinity
 
 schema Server:
     """Server is abstaction of Deployment and StatefulSet.
@@ -155,3 +156,6 @@ schema Server:
 
     # Strategy for deployment
     deploymentStrategy?: deployment.DeploymentStrategy
+
+    # Affinity
+    affinity?: affinity.Affinity

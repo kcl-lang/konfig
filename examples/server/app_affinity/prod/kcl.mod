@@ -1,5 +1,5 @@
 [package]
-name = "app_deployment_strategy-prod"
+name = "app_affinity-prod"
 version = "0.0.1"
 
 [dependencies]
