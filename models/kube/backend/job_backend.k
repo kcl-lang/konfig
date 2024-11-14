@@ -32,7 +32,7 @@ schema JobBackend[inputConfig: frontend.Job]:
         mainContainerDict = {
             **config.mainContainer
             if config.mainContainer.useBuiltInEnv:
-                env += app.envs
+                env = config.mainContainer.env | app.envs
             name = config.mainContainer.name or "main"
             image = config.image
             resource = config?.schedulingStrategy?.resource
