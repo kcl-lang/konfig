@@ -41,7 +41,7 @@ schema ServerBackend[inputConfig: server.Server]:
         mainContainer = utils.volume_patch(config.volumes, [utils.ContainerFrontend2Kube({
             **config.mainContainer
             if config.mainContainer.useBuiltInEnv:
-                env += app.envs
+                env = config.mainContainer.env | app.envs
             name = config.mainContainer.name or "main"
             image = config.image
             resource = config?.schedulingStrategy?.resource
