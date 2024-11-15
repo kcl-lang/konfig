@@ -27,6 +27,11 @@ schema Sidecar:
     image: str, default is Undefined, required
         A Container-level attribute.
         Container image name. More info: https://kubernetes.io/docs/concepts/containers/images
+    imagePullPolicy : str, default is Undefined, optional
+        A Container-level attribute.
+        The policy for image pulling. The value of
+        this field must be one of "Always", "IfNotPresent" or
+        "Never". Defaults to "IfNotPresent".
     livenessProbe: p.Probe, default is Undefined, optional.
         A Container-level attribute.
         The probe to check whether container is live or not.
@@ -76,6 +81,7 @@ schema Sidecar:
     ports?: [cp.ContainerPort]
     resource: str | res.Resource
     image: str
+    imagePullPolicy?: "Always" | "IfNotPresent" | "Never"
 
     readinessProbe?: p.Probe
     livenessProbe?: p.Probe

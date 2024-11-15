@@ -44,6 +44,7 @@ schema ServerBackend[inputConfig: server.Server]:
                 env = config.mainContainer.env | app.envs
             name = config.mainContainer.name or "main"
             image = config.image
+            imagePullPolicy = config.imagePullPolicy
             resource = config?.schedulingStrategy?.resource
         })])?[0]
 

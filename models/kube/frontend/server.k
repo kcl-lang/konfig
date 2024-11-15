@@ -36,6 +36,11 @@ schema Server:
     image: str, default is Undefined, required.
         Container image name.
         More info: https://kubernetes.io/docs/concepts/containers/images
+    imagePullPolicy : str, default is Undefined, optional
+        A Container-level attribute.
+        The policy for image pulling. The value of
+        this field must be one of "Always", "IfNotPresent" or
+        "Never". Defaults to "IfNotPresent".
     schedulingStrategy: strategy.SchedulingStrategy, default is Undefined, required.
         SchedulingStrategy represents scheduling strategy.
     mainContainer: container.Main, default is Undefined, required.
@@ -118,6 +123,8 @@ schema Server:
 
     # Main container image
     image: str = option("image")
+    # Main container imagePullPolicy
+    imagePullPolicy?: "Always" | "IfNotPresent" | "Never"
     # Main container resource
     schedulingStrategy: strategy.SchedulingStrategy = strategy.SchedulingStrategy {}
 
