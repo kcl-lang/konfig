@@ -4,4 +4,4 @@ version = "0.0.1"
 
 [dependencies]
 konfig = { path = "../../../../konfig" }
-k8s = "1.28"
+k8s = "1.31.2"

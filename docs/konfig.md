@@ -14,6 +14,17 @@
     - frontend
       - [Job](#job)
       - [Server](#server)
+      - affinity
+        - [Affinity](#affinity)
+        - [NodeAffinity](#nodeaffinity)
+        - [NodeSelector](#nodeselector)
+        - [NodeSelectorRequirement](#nodeselectorrequirement)
+        - [NodeSelectorTerm](#nodeselectorterm)
+        - [PodAffinity](#podaffinity)
+        - [PodAffinityTerm](#podaffinityterm)
+        - [PodAntiAffinity](#podantiaffinity)
+        - [PreferredSchedulingTerm](#preferredschedulingterm)
+        - [WeightedPodAffinityTerm](#weightedpodaffinityterm)
       - common
         - [Metadata](#metadata)
       - configmap
@@ -37,6 +48,9 @@
           - [Http](#http)
           - [Probe](#probe)
           - [Tcp](#tcp)
+      - deployment
+        - [DeploymentStrategy](#deploymentstrategy)
+        - [RollingUpdateDeployment](#rollingupdatedeployment)
       - ingress
         - [Ingress](#ingress)
       - rbac
@@ -136,8 +150,9 @@ Provider
 |**app** `required`|[ApplicationBuilder](#applicationbuilder)||utils.ApplicationBuilder {}|
 |**config** `required`|[Job](#job)||inputConfig|
 |**initContainers**|[{str:}]|||
-|**jobAttrs** `required`|{str:}||{<br />    metadata = utils.MetadataBuilder(config) \| {<br />        name = jobName<br />    }<br />    spec = {<br />        activeDeadlineSeconds = config.activeDeadlineSeconds<br />        backoffLimit = config.backoffLimit<br />        completionMode = config.completionMode<br />        completions = config.completions<br />        manualSelector = config.manualSelector<br />        parallelism = config.parallelism<br />        suspend = config.suspend<br />        ttlSecondsAfterFinished = config.ttlSecondsAfterFinished<br />        selector: {matchLabels = app.selector \| config.selector}<br />        template = {<br />            metadata = {<br />                labels = app.labels<br />                **config.podMetadata<br />            }<br />            spec = {<br />                containers = [<br />                    mainContainer<br />                    *sidecarContainers<br />                ]<br />                initContainers = initContainers<br />                restartPolicy = config.restartPolicy<br />                if config.volumes:<br />                    volumes = [utils.to_kube_volume(v) for v in config.volumes if v.volumeSource]<br />                <br />                if config.serviceAccount:<br />                    serviceAccountName = config.serviceAccount.name<br />                <br />            }<br />        }<br />    }<br />}|
-|**jobName** `required`|str||"{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()|
+|**jobAttrs** `required`|{str:}||{<br />    metadata = utils.MetadataBuilder(config) \| {<br />        name = jobName<br />        namespace = jobNamespace<br />    }<br />    spec = {<br />        activeDeadlineSeconds = config.activeDeadlineSeconds<br />        backoffLimit = config.backoffLimit<br />        completionMode = config.completionMode<br />        completions = config.completions<br />        manualSelector = config.manualSelector<br />        parallelism = config.parallelism<br />        suspend = config.suspend<br />        ttlSecondsAfterFinished = config.ttlSecondsAfterFinished<br />        selector: {matchLabels = app.selector \| config.selector}<br />        template = {<br />            metadata = {<br />                labels = app.labels<br />                **config.podMetadata<br />            }<br />            spec = {<br />                containers = [<br />                    mainContainer<br />                    *sidecarContainers<br />                ]<br />                initContainers = initContainers<br />                restartPolicy = config.restartPolicy<br />                if config.volumes:<br />                    volumes = [utils.to_kube_volume(v) for v in config.volumes if v.volumeSource]<br />                if config.serviceAccount:<br />                    serviceAccountName = config.serviceAccount.name<br />            }<br />        }<br />    }<br />}|
+|**jobName** `required`|str||config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()|
+|**jobNamespace** `required`|str||config.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME).lower()|
 |**kubernetes** `required`|[ResourceMapping](#resourcemapping)||{<br />    "${typeof(_jobInstance)}" = [_jobInstance]<br />}|
 |**mainContainer** `required`|{str:}|||
 |**mainContainerDict** `required`|{str:}|||
@@ -151,16 +166,17 @@ ServerBackend converts the user-written front-end model `Server` into a collecti
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**_applicationLabel** `required`|{str:str}||{<br />    "app.k8s.io/component": workloadName<br />}|
-|**_workloadInstance**|[Deployment](#deployment) \| [StatefulSet](#statefulset)|||
+|**_workloadInstance**|[Deployment](#deployment) | [StatefulSet](#statefulset)|||
 |**app** `required`|[ApplicationBuilder](#applicationbuilder)||utils.ApplicationBuilder {}|
 |**config** `required`|[Server](#server)||inputConfig|
 |**initContainers**|[{str:}]|||
-|**kubernetes** `required`|[ResourceMapping](#resourcemapping)||{<br />    if _workloadInstance:<br />        "${typeof(_workloadInstance)}" = [_workloadInstance]<br />    <br />    if _headlessServiceInstance:<br />        "${typeof(_headlessServiceInstance)}" = [_headlessServiceInstance]<br />    <br />}|
+|**kubernetes** `required`|[ResourceMapping](#resourcemapping)||{<br />    if _workloadInstance:<br />        "${typeof(_workloadInstance)}" = [_workloadInstance]<br />    if _headlessServiceInstance:<br />        "${typeof(_headlessServiceInstance)}" = [_headlessServiceInstance]<br />}|
 |**mainContainer** `required`|{str:}|||
 |**provider**|[]|||
 |**sidecarContainers**|[{str:}]|||
-|**workloadAttributes** `required`|{str:}||{<br />    metadata = utils.MetadataBuilder(config) \| {<br />        name = workloadName<br />    }<br />    spec = {<br />        replicas = config.replicas<br />        if config.useBuiltInSelector:<br />            selector: {matchLabels: app.selector \| config.selector \| _applicationLabel}<br />        else:<br />            selector: {matchLabels: config.selector}<br />        template = {<br />            metadata = {<br />                if config.useBuiltInLabels:<br />                    labels = app.labels \| _applicationLabel<br />                <br />                **config.podMetadata<br />            }<br />            spec = {<br />                containers = [mainContainer] + (sidecarContainers or [])<br />                initContainers = initContainers<br />                if config.volumes:<br />                    volumes = [utils.to_kube_volume(v) for v in config.volumes if v.volumeSource]<br />                <br />                if config.serviceAccount:<br />                    serviceAccountName = config.serviceAccount.name<br />                <br />            }<br />        }<br />    }<br />}|
+|**workloadAttributes** `required`|{str:}||{<br />    metadata = utils.MetadataBuilder(config) \| {<br />        name = workloadName<br />        namespace = workloadNamespace<br />    }<br />    spec = {<br />        replicas = config.replicas<br />        if config.useBuiltInSelector:<br />            selector: {matchLabels: app.selector \| config.selector \| _applicationLabel}<br />        else:<br />            selector: {matchLabels: config.selector}<br />        template = {<br />            metadata = {<br />                if config.useBuiltInLabels:<br />                    labels = app.labels \| _applicationLabel<br />                **config.podMetadata<br />            }<br />            spec = {<br />                containers = [mainContainer] + (sidecarContainers or [])<br />                initContainers = initContainers<br />                if config.volumes:<br />                    volumes = [utils.to_kube_volume(v) for v in config.volumes if v.volumeSource]<br />                if config.serviceAccount:<br />                    serviceAccountName = config.serviceAccount.name<br />                if config.affinity:<br />                    affinity = config.affinity<br />            }<br />        }<br />        if config.deploymentStrategy:<br />            strategy = config.deploymentStrategy<br />    }<br />}|
 |**workloadName** `required`|str||config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()|
+|**workloadNamespace** `required`|str||config.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME).lower()|
 ### Job
 
 Job is the common user interface for one-time jobs, which is defined by Kubernetes Job. Job supports reliable parallel execution of Pods.
@@ -172,7 +188,7 @@ Job is the common user interface for one-time jobs, which is defined by Kubernet
 |**activeDeadlineSeconds**|int|Specifies the duration in seconds relative to the startTime that the job may be active<br />before the system tries to terminate it; value must be positive integer||
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
 |**backoffLimit**|int|Specifies the number of retries before marking this job failed. Defaults to 6|6|
-|**completionMode**|"NonIndexed" \| "Indexed"|CompletionMode specifies how Pod completions are tracked. It can be `NonIndexed` (default) or `Indexed`.|"NonIndexed"|
+|**completionMode**|"NonIndexed" | "Indexed"|CompletionMode specifies how Pod completions are tracked. It can be `NonIndexed` (default) or `Indexed`.|"NonIndexed"|
 |**completions**|int|Specifies the desired number of successfully finished pods the job should be run with.<br />More info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/||
 |**configMaps**|[[ConfigMap](#configmap)]|ConfigMaps is a list of ConfigMap which holds configuration data for server to consume.||
 |**image** `required`|str|Container image name. More info: https://kubernetes.io/docs/concepts/containers/images|option("image")|
@@ -180,10 +196,12 @@ Job is the common user interface for one-time jobs, which is defined by Kubernet
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to organize and categorize (scope and select) objects.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**mainContainer** `required`|[Main](#main)|MainContainer describes the main container configuration that is expected to be run on the host.||
 |**manualSelector**|bool|manualSelector controls generation of pod labels and pod selectors.<br />More info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/#specifying-your-own-pod-selector||
+|**name**|str|The name of the workload and service.<br />If not defined, a generated name ("{__META_APP_NAME}-{__META_ENV_TYPE_NAME}") will be used.<br />The value of metadata.__META_APP_NAME will be extracted from the value of the "name" defined through option("app"),<br />and the value of __META_ENV_TYPE_NAME will be extracted from the value of the "name" defined through option("env").||
+|**namespace**|str|The namespace of the workload and service.<br />If not defined, a generated name ("{__META_APP_NAMESPACE}-{__META_ENV_TYPE_NAME}") will be used.<br />The value of metadata.__META_APP_NAMESPACE will be extracted from the value of the "name" defined through option("appns"),<br />and the value of __META_ENV_TYPE_NAME will be extracted from the value of the "name" defined through option("env").||
 |**needNamespace**|bool|NeedNamespace mark server is namespace scoped or not.|True|
 |**parallelism**|int|Specifies the maximum desired number of pods the job should run at any given time.<br />More info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/||
 |**podMetadata**|[ObjectMeta](#objectmeta)|PodMetadata is metadata that all persisted resources must have, which includes all objects users must create.||
-|**restartPolicy**|"Never" \| "OnFailure"|Restart policy for all containers within the pod. One of Always, OnFailure, Never.<br />Default to Always. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy|"Never"|
+|**restartPolicy**|"Never" | "OnFailure"|Restart policy for all containers within the pod. One of Always, OnFailure, Never.<br />Default to Always. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy|"Never"|
 |**schedulingStrategy**|[SchedulingStrategy](#schedulingstrategy)|SchedulingStrategy represents scheduling strategy.|strategy.SchedulingStrategy {}|
 |**selector**|{str:str}|A label query over pods that should match the pod count.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors||
 |**serviceAccount**|[ServiceAccount](#serviceaccount)|ServiceAccount is used to run this pod.||
@@ -214,20 +232,24 @@ Server is abstaction of Deployment and StatefulSet.
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
+|**affinity**|[Affinity](#affinity)|||
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
 |**configMaps**|[[ConfigMap](#configmap)]|ConfigMaps is a list of ConfigMap which holds configuration data for server to consume.||
 |**database**|[DataBase](#database)|||
+|**deploymentStrategy**|[DeploymentStrategy](#deploymentstrategy)|||
 |**enableMonitoring**|bool|EnableMonitoring mark server is enable monitor or not.|False|
 |**extraResources**|{str:{str:}}|Extra resources used to output the final result.||
 |**image** `required`|str|Container image name.<br />More info: https://kubernetes.io/docs/concepts/containers/images|option("image")|
+|**imagePullPolicy**|"Always" | "IfNotPresent" | "Never"|A Container-level attribute.<br />The policy for image pulling. The value of<br />this field must be one of "Always", "IfNotPresent" or<br />"Never". Defaults to "IfNotPresent".||
 |**ingresses**|[[Ingress](#ingress)]|Ingresses is a list of Ingress which is collection of rules that allow inbound connections to reach the endpoints defined by a backend.||
 |**initContainers**|[[Sidecar](#sidecar)]|InitContainers describes the list of sidecar container configuration that is expected to be run on the host.||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to organize and categorize (scope and select) objects.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**mainContainer** `required`|[Main](#main)|MainContainer describes the main container configuration that is expected to be run on the host.||
-|**name**|str|The name of the workload and service.<br />If not defined, a generated name ("{__META_APP_NAME}-{__META_ENV_TYPE_NAME}") will be used.<br />The value of __META_APP_NAME will be extracted from the value of the "name" defined in project.yaml,<br />and the value of __META_ENV_TYPE_NAME will be extracted from the value of the "name" defined in stack.yaml.||
+|**name**|str|The name of the workload and service.<br />If not defined, a generated name ("{__META_APP_NAME}-{__META_ENV_TYPE_NAME}") will be used.<br />The value of metadata.__META_APP_NAME will be extracted from the value of the "name" defined through option("app"),<br />and the value of __META_ENV_TYPE_NAME will be extracted from the value of the "name" defined through option("env").||
+|**namespace**|str|The namespace of the workload and service.<br />If not defined, a generated name ("{__META_APP_NAMESPACE}-{__META_ENV_TYPE_NAME}") will be used.<br />The value of metadata.__META_APP_NAMESPACE will be extracted from the value of the "name" defined through option("appns"),<br />and the value of __META_ENV_TYPE_NAME will be extracted from the value of the "name" defined through option("env").||
 |**needNamespace**|bool|NeedNamespace mark server is namespace scoped or not.|True|
 |**podMetadata**|[ObjectMeta](#objectmeta)|PodMetadata is metadata that all persisted resources must have, which includes all objects users must create.||
-|**renderType**|"Server" \| "KubeVelaApplication"|Application render type, default to &#39;Server&#39;|"Server"|
+|**renderType**|"Server" | "KubeVelaApplication"|Application render type, default to 'Server'|"Server"|
 |**replicas** `required`|int|Number of desired pods. This is a pointer to distinguish between explicit zero and not specified. Defaults to 1.|option("replicas") or 1|
 |**schedulingStrategy** `required`|[SchedulingStrategy](#schedulingstrategy)|SchedulingStrategy represents scheduling strategy.|strategy.SchedulingStrategy {}|
 |**secrets**|[[Secret](#secret)]|Secrets is a list of Secret which hold secret data of a certain type.||
@@ -239,7 +261,7 @@ Server is abstaction of Deployment and StatefulSet.
 |**useBuiltInLabels**|bool|UseBuiltInLabels indicates use built-in labels or not.|True|
 |**useBuiltInSelector**|bool|UseBuiltInSelector indicates use built-in selector or not.|True|
 |**volumes**|[[Volume](#volume)]|Volumes represents a named volume and corresponding mounts in containers.||
-|**workloadType** `required`|"Deployment" \| "StatefulSet"|Application workload type, default to &#39;Deployment&#39;|"Deployment"|
+|**workloadType** `required`|"Deployment" | "StatefulSet"|Application workload type, default to 'Deployment'|"Deployment"|
 #### Examples
 
 ```
@@ -265,6 +287,111 @@ appConfiguration: frontend.Server {
 }
 ```
 
+### Affinity
+
+Affinity is a group of affinity scheduling rules.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**nodeAffinity**|[NodeAffinity](#nodeaffinity)|Describes node affinity scheduling rules for the pod.||
+|**podAffinity**|[PodAffinity](#podaffinity)|Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).||
+|**podAntiAffinity**|[PodAntiAffinity](#podantiaffinity)|Describes pod anti-affinity scheduling rules (e.g. avoid putting this pod in the same node, zone, etc. as some other pod(s)).||
+### NodeAffinity
+
+Node affinity is a group of node affinity scheduling rules.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**preferredDuringSchedulingIgnoredDuringExecution**|[[PreferredSchedulingTerm](#preferredschedulingterm)]|The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding "weight" to the sum if the node matches the corresponding matchExpressions; the node(s) with the highest sum are the most preferred.||
+|**requiredDuringSchedulingIgnoredDuringExecution**|[NodeSelector](#nodeselector)|If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to an update), the system may or may not try to eventually evict the pod from its node.||
+### NodeSelector
+
+A node selector represents the union of the results of one or more label queries over a set of nodes; that is, it represents the OR of the selectors represented by the node selector terms.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**nodeSelectorTerms** `required`|[[NodeSelectorTerm](#nodeselectorterm)]|Required. A list of node selector terms. The terms are ORed.||
+### NodeSelectorRequirement
+
+A node selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**key** `required`|str|The label key that the selector applies to.||
+|**operator** `required`|str|Represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.||
+|**values**|[str]|An array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. If the operator is Gt or Lt, the values array must have a single element, which will be interpreted as an integer. This array is replaced during a strategic merge patch.||
+### NodeSelectorTerm
+
+A null or empty node selector term matches no objects. The requirements of them are ANDed. The TopologySelectorTerm type implements a subset of the NodeSelectorTerm.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**matchExpressions**|[[NodeSelectorRequirement](#nodeselectorrequirement)]|A list of node selector requirements by node's labels.||
+|**matchFields**|[[NodeSelectorRequirement](#nodeselectorrequirement)]|A list of node selector requirements by node's fields.||
+### PodAffinity
+
+Pod affinity is a group of inter pod affinity scheduling rules.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**preferredDuringSchedulingIgnoredDuringExecution**|[[WeightedPodAffinityTerm](#weightedpodaffinityterm)]|The scheduler will prefer to schedule pods to nodes that satisfy the affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.||
+|**requiredDuringSchedulingIgnoredDuringExecution**|[[PodAffinityTerm](#podaffinityterm)]|If the affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.||
+### PodAffinityTerm
+
+Defines a set of pods (namely those matching the labelSelector relative to the given namespace(s)) that this pod should be co-located (affinity) or not co-located (anti-affinity) with, where co-located is defined as running on a node whose value of the label with key <topologyKey> matches that of any node on which a pod of the set of pods is running
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**labelSelector**|[LabelSelector](#labelselector)|A label query over a set of resources, in this case pods. If it's null, this PodAffinityTerm matches with no Pods.||
+|**matchLabelKeys**|[str]|MatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key in (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both matchLabelKeys and labelSelector. Also, matchLabelKeys cannot be set when labelSelector isn't set. This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).||
+|**mismatchLabelKeys**|[str]|MismatchLabelKeys is a set of pod label keys to select which pods will be taken into consideration. The keys are used to lookup values from the incoming pod labels, those key-value labels are merged with `labelSelector` as `key notin (value)` to select the group of existing pods which pods will be taken into consideration for the incoming pod's pod (anti) affinity. Keys that don't exist in the incoming pod labels will be ignored. The default value is empty. The same key is forbidden to exist in both mismatchLabelKeys and labelSelector. Also, mismatchLabelKeys cannot be set when labelSelector isn't set. This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).||
+|**namespaceSelector**|[LabelSelector](#labelselector)|A label query over the set of namespaces that the term applies to. The term is applied to the union of the namespaces selected by this field and the ones listed in the namespaces field. null selector and null or empty namespaces list means "this pod's namespace". An empty selector ({}) matches all namespaces.||
+|**namespaces**|[str]|namespaces specifies a static list of namespace names that the term applies to. The term is applied to the union of the namespaces listed in this field and the ones selected by namespaceSelector. null or empty namespaces list and null namespaceSelector means "this pod's namespace".||
+|**topologyKey** `required`|str|This pod should be co-located (affinity) or not co-located (anti-affinity) with the pods matching the labelSelector in the specified namespaces, where co-located is defined as running on a node whose value of the label with key topologyKey matches that of any node on which any of the selected pods is running. Empty topologyKey is not allowed.||
+### PodAntiAffinity
+
+Pod anti affinity is a group of inter pod anti affinity scheduling rules.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**preferredDuringSchedulingIgnoredDuringExecution**|[[WeightedPodAffinityTerm](#weightedpodaffinityterm)]|The scheduler will prefer to schedule pods to nodes that satisfy the anti-affinity expressions specified by this field, but it may choose a node that violates one or more of the expressions. The node that is most preferred is the one with the greatest sum of weights, i.e. for each node that meets all of the scheduling requirements (resource request, requiredDuringScheduling anti-affinity expressions, etc.), compute a sum by iterating through the elements of this field and adding "weight" to the sum if the node has pods which matches the corresponding podAffinityTerm; the node(s) with the highest sum are the most preferred.||
+|**requiredDuringSchedulingIgnoredDuringExecution**|[[PodAffinityTerm](#podaffinityterm)]|If the anti-affinity requirements specified by this field are not met at scheduling time, the pod will not be scheduled onto the node. If the anti-affinity requirements specified by this field cease to be met at some point during pod execution (e.g. due to a pod label update), the system may or may not try to eventually evict the pod from its node. When there are multiple elements, the lists of nodes corresponding to each podAffinityTerm are intersected, i.e. all terms must be satisfied.||
+### PreferredSchedulingTerm
+
+An empty preferred scheduling term matches all objects with implicit weight 0 (i.e. it's a no-op). A null preferred scheduling term matches no objects (i.e. is also a no-op).
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**preference** `required`|[NodeSelectorTerm](#nodeselectorterm)|A node selector term, associated with the corresponding weight.||
+|**weight** `required`|int|Weight associated with matching the corresponding nodeSelectorTerm, in the range 1-100.||
+### WeightedPodAffinityTerm
+
+The weights of all of the matched WeightedPodAffinityTerm fields are added per-node to find the most preferred node(s)
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**podAffinityTerm** `required`|[PodAffinityTerm](#podaffinityterm)|Required. A pod affinity term, associated with the corresponding weight.||
+|**weight** `required`|int|weight associated with matching the corresponding podAffinityTerm, in the range 1-100.||
 ### Metadata
 
 Metadata is the base schema of all models, which contains data that helps uniquely identify the object.
@@ -275,7 +402,7 @@ Metadata is the base schema of all models, which contains data that helps unique
 | --- | --- | --- | --- |
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a<br />resource that may be set by external tools to store and retrieve<br />arbitrary metadata. They are not queryable and should be preserved<br />when modifying objects.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 ### ConfigMap
 
@@ -289,7 +416,7 @@ ConfigMap holds configuration data for pods to consume. More info: https://kuber
 |**binaryData**|{str:str}|BinaryData contains the binary data.||
 |**data**|{str:str}|Data contains the configuration data.||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 #### Examples
 
@@ -312,8 +439,8 @@ Main describes the main container configuration that is expected to be run on th
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**args**|[str]|A Container-level attribute.<br />The startup arguments of main process. The image&#39;s cmd is used if this is not provided.||
-|**command**|[str]|A Container-level attribute.<br />The startup command of main process. The image&#39;s entrypoint is used if this is not provided.||
+|**args**|[str]|A Container-level attribute.<br />The startup arguments of main process. The image's cmd is used if this is not provided.||
+|**command**|[str]|A Container-level attribute.<br />The startup command of main process. The image's entrypoint is used if this is not provided.||
 |**env**|[EnvMap](#envmap)|A Container-level attribute.<br />List of environment variables in the container.||
 |**envFrom**|[[EnvFromSource](#envfromsource)]|A Container-level attribute.<br />List of sources to populate environment variables in the container.||
 |**lifecycle**|[Lifecycle](#lifecycle)|Actions that the management system should take in response to container lifecycle events. Cannot be updated.||
@@ -324,7 +451,7 @@ Main describes the main container configuration that is expected to be run on th
 |**securityContext**|{str:}|SecurityContext defines the security options the container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext. More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/||
 |**startupProbe**|[Probe](#probe)|A Container-level attribute.<br />The probe to indicates that the Pod has successfully initialized.||
 |**useBuiltInEnv**|bool|useBuiltInEnv indicates use built-in envs or not.|False|
-|**workingDir**|str|Container&#39;s working directory. If not specified, the container runtime&#39;s default will be used, which might be configured in the container image. Cannot be updated.||
+|**workingDir**|str|Container's working directory. If not specified, the container runtime's default will be used, which might be configured in the container image. Cannot be updated.||
 #### Examples
 
 ```
@@ -410,7 +537,7 @@ ResourceFieldSelector represents container resources (cpu, memory) and their out
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**containerName**|str|A Container-level attribute.||
-|**divisor**|int \| units.NumberMultiplier|A Container-level attribute.<br />Specifies the output format of the exposed resources, defaults to 1|1|
+|**divisor**|int | units.NumberMultiplier|A Container-level attribute.<br />Specifies the output format of the exposed resources, defaults to 1|1|
 |**resource** `required`|str|A Container-level attribute.<br />Resource to select.||
 ### Lifecycle
 
@@ -420,8 +547,8 @@ Lifecycle describes actions that the management system should take in response t
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**postStart**|[Exec](#exec) \| [Http](#http)|A Container-level attribute.<br />The PostStart action is called immediately after a container is created.||
-|**preStop**|[Exec](#exec) \| [Http](#http)|A Container-level attribute.<br />The PreStop action is called immediately before a container is terminated.||
+|**postStart**|[Exec](#exec) | [Http](#http)|A Container-level attribute.<br />The PostStart action is called immediately after a container is created.||
+|**preStop**|[Exec](#exec) | [Http](#http)|A Container-level attribute.<br />The PreStop action is called immediately before a container is terminated.||
 #### Examples
 
 ```
@@ -450,9 +577,9 @@ ContainerPort represents a network port in a single container.
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**containerPort** `required`|int|A Container-level attribute.<br />The number of port to expose on the container&#39;s IP address.||
+|**containerPort** `required`|int|A Container-level attribute.<br />The number of port to expose on the container's IP address.||
 |**name**|str|If specified, this must be an IANA_SVC_NAME and unique within the pod.<br />Each named port in a pod must have a unique name.<br />Name for the port that can be referred to by services.||
-|**protocol** `required`|"TCP" \| "UDP" \| "SCTP"|A Container-level attribute.<br />The protocol for port. Must be UDP, TCP or SCTP. Default is TCP.|"TCP"|
+|**protocol** `required`|"TCP" | "UDP" | "SCTP"|A Container-level attribute.<br />The protocol for port. Must be UDP, TCP or SCTP. Default is TCP.|"TCP"|
 #### Examples
 
 ```
@@ -482,7 +609,7 @@ Http describes an action based on HTTP Get requests.
 | --- | --- | --- | --- |
 |**path** `required`|str|A Container-level attribute.<br />The Path to access on the HTTP server. e.g /healthz||
 |**port** `required`|int|A Container-level attribute.<br />The Number of the port to access on the container.||
-|**scheme** `required`|"HTTP" \| "HTTPS"|A Container-level attribute.<br />Scheme to use for connecting to the host, defaults to HTTP.|"HTTP"|
+|**scheme** `required`|"HTTP" | "HTTPS"|A Container-level attribute.<br />Scheme to use for connecting to the host, defaults to HTTP.|"HTTP"|
 ### Probe
 
 Probe describes a health check to be performed against a container to determine whether it is alive or ready to receive traffic.
@@ -492,7 +619,7 @@ Probe describes a health check to be performed against a container to determine 
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**failureThreshold**|int|A Container-level attribute.<br />Minimum consecutive failures for the probe to be considered failed after having succeeded.||
-|**handler** `required`|[Exec](#exec) \| [Http](#http) \| [Tcp](#tcp)|A Container-level attribute.<br />The action taken to determine the health of a container.||
+|**handler** `required`|[Exec](#exec) | [Http](#http) | [Tcp](#tcp)|A Container-level attribute.<br />The action taken to determine the health of a container.||
 |**initialDelaySeconds**|int|A Container-level attribute.<br />The length of time before health checking is activated.  In seconds.||
 |**periodSeconds**|int|A Container-level attribute.<br />How often (in seconds) to perform the probe.|10|
 |**successThreshold**|int|A Container-level attribute.<br />Minimum consecutive successes for the probe to be considered successful after having failed.||
@@ -519,6 +646,26 @@ Tcp describes an action based on opening a socket.
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**tcpSocket** `required`|int|A Container-level attribute.<br />The TCP socket port to connect to.||
+### DeploymentStrategy
+
+DeploymentStrategy describes how to replace existing pods with new ones.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**rollingUpdate**|[RollingUpdateDeployment](#rollingupdatedeployment)|Rolling update config params. Present only if DeploymentStrategyType = RollingUpdate.||
+|**type**|str|||
+### RollingUpdateDeployment
+
+Spec to control the desired behavior of rolling update.
+
+#### Attributes
+
+| name | type | description | default value |
+| --- | --- | --- | --- |
+|**maxSurge**|int | str|The maximum number of pods that can be scheduled above the desired number of pods. Value can be an absolute number (ex: 5) or a percentage of desired pods (ex: 10%). This can not be 0 if MaxUnavailable is 0. Absolute number is calculated from percentage by rounding up. Defaults to 25%. Example: when this is set to 30%, the new ReplicaSet can be scaled up immediately when the rolling update starts, such that the total number of old and new pods do not exceed 130% of desired pods. Once old pods have been killed, new ReplicaSet can be scaled up further, ensuring that total number of pods running at any time during the update is at most 130% of desired pods.||
+|**maxUnavailable**|int | str|The maximum number of pods that can be unavailable during the update. Value can be an absolute number (ex: 5) or a percentage of desired pods (ex: 10%). Absolute number is calculated from percentage by rounding down. This can not be 0 if MaxSurge is 0. Defaults to 25%. Example: when this is set to 30%, the old ReplicaSet can be scaled down to 70% of desired pods immediately when the rolling update starts. Once new pods are ready, old ReplicaSet can be scaled down further, followed by scaling up the new ReplicaSet, ensuring that the total number of pods available at all times during the update is at least 70% of desired pods.||
 ### Ingress
 
 Ingress is a collection of rules that allow inbound connections to reach the endpoints defined by a backend. An Ingress can be configured to give services externally-reachable urls, load balance traffic, terminate SSL, offer name based virtual hosting etc.
@@ -528,8 +675,9 @@ Ingress is a collection of rules that allow inbound connections to reach the end
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a<br />resource that may be set by external tools to store and retrieve<br />arbitrary metadata. They are not queryable and should be preserved<br />when modifying objects.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
+|**ingressClassName**|str|This field should reference an IngressClass resource specifying the name of the controller that will implement the class. If left unspecified, a default IngressClass will be assigned by the controller if any IngressClass has ingressclass.kubernetes.io/is-default-class set to true.||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**rules**|[[IngressRule](#ingressrule)]|A list of host rules used to configure the Ingress. If unspecified, or no rule matches, all traffic is sent to the default backend.||
 |**tls**|[[IngressTLS](#ingresstls)]|TLS configuration. Currently the Ingress only supports a single TLS port, 443. If multiple members of this list specify different hosts, they will be multiplexed on the same port according to the hostname specified through the SNI TLS extension, if the ingress controller fulfilling the ingress supports SNI.||
@@ -575,7 +723,7 @@ rules: [PolicyRule], default is Undefined, optional Rules holds all the PolicyRu
 |**kubernetes** `required`|[ClusterRole](#clusterrole)||rbacv1.ClusterRole {<br />    metadata = metadata<br />    rules = rules<br />    aggregationRule = aggregationRule<br />}|
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**metadata**|{str:}||{<br />    name: name?.lower()<br />    annotations: annotations<br />    namespace: namespace<br />    labels: labels<br />}|
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**rules**|[[PolicyRule](#policyrule)]|||
 ### ClusterRoleBinding
@@ -590,7 +738,7 @@ subjects: [Subject], default is Undefined, optional Subjects holds references to
 |**kubernetes** `required`|[ClusterRoleBinding](#clusterrolebinding)||rbacv1.ClusterRoleBinding {<br />    metadata = metadata<br />    subjects = subjects<br />    roleRef = roleRef<br />}|
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**metadata**|{str:}||{<br />    name: name?.lower()<br />    annotations: annotations<br />    namespace: namespace<br />    labels: labels<br />}|
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**roleRef** `required`|[RoleRef](#roleref)|||
 |**subjects**|[[Subject](#subject)]|||
@@ -606,7 +754,7 @@ rules: [PolicyRule], default is Undefined, optional Rules holds all the PolicyRu
 |**kubernetes** `required`|[Role](#role)||rbacv1.Role {<br />    metadata = metadata<br />    rules = rules<br />}|
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**metadata**|{str:}||{<br />    name: name?.lower()<br />    annotations: annotations<br />    namespace: namespace<br />    labels: labels<br />}|
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**rules**|[[PolicyRule](#policyrule)]|||
 ### RoleBinding
@@ -621,7 +769,7 @@ subjects: [Subject], default is Undefined, optional Subjects holds references to
 |**kubernetes** `required`|[RoleBinding](#rolebinding)||rbacv1.RoleBinding {<br />    metadata = metadata<br />    subjects = subjects<br />    roleRef = roleRef<br />}|
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**metadata**|{str:}||{<br />    name: name?.lower()<br />    annotations: annotations<br />    namespace: namespace<br />    labels: labels<br />}|
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**roleRef** `required`|[RoleRef](#roleref)|||
 |**subjects**|[[Subject](#subject)]|||
@@ -633,9 +781,9 @@ Resource describes the compute resource requirements.
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**cpu**|int \| units.NumberMultiplier|A Container-level attribute.<br />CPU, in cores, default 1 core. (500m = .5 cores)|1|
-|**disk**|units.NumberMultiplier|A Container-level attribute.<br />Local disk storage, in bytes, default 10Gi. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)|10Gi|
-|**memory**|units.NumberMultiplier|A Container-level attribute.<br />Memory, in bytes, default 1024Mi. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)|1024Mi|
+|**cpu**|int | units.NumberMultiplier|A Container-level attribute.<br />CPU, in cores, default 1 core. (500m = .5 cores)|1|
+|**disk**|str | units.NumberMultiplier|A Container-level attribute.<br />Local disk storage, in bytes, default 10Gi. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)|10Gi|
+|**memory**|str | units.NumberMultiplier|A Container-level attribute.<br />Memory, in bytes, default 1024Mi. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024)|1024Mi|
 #### Examples
 
 ```
@@ -686,9 +834,9 @@ Secret holds secret data of a certain type. The total bytes of the values in the
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a<br />resource that may be set by external tools to store and retrieve<br />arbitrary metadata. They are not queryable and should be preserved<br />when modifying objects.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
-|**data**|{str:str}|Data contains the secret data. Each key must consist of alphanumeric characters, &#39;-&#39;, &#39;_&#39; or &#39;.&#39;.<br />More info: https://kubernetes.io/docs/concepts/configuration/secret/#restriction-names-data||
+|**data**|{str:str}|Data contains the secret data. Each key must consist of alphanumeric characters, '-', '_' or '.'.<br />More info: https://kubernetes.io/docs/concepts/configuration/secret/#restriction-names-data||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**stringData**|{str:str}|stringData allows specifying non-binary secret data in string form.<br />More info: https://kubernetes.io/docs/concepts/configuration/secret/#restriction-names-data||
 |**type**|str|Used to facilitate programmatic handling of secret data.<br />More info: https://kubernetes.io/docs/concepts/configuration/secret/#secret-types||
@@ -724,7 +872,7 @@ Service are Kubernetes objects which partition a single Kubernetes cluster into 
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
 |**loadBalancerIP**|str|Only applies to Service Type: LoadBalancer LoadBalancer will get created with the IP specified in this field.||
 |**loadBalancerSourceRanges**|[str]|If specified and supported by the platform, this will restrict traffic through the cloud-provider load-balancer will be restricted to the specified client IPs.<br />This field will be ignored if the cloud-provider does not support the feature.<br />More info: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**ports**|[[ServicePort](#serviceport)]|The list of ports that are exposed by this service.<br />More info: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies||
 |**publishNotReadyAddresses**|bool|publishNotReadyAddresses indicates that any agent which deals with endpoints for this Service should disregard any indications of ready/not-ready.||
@@ -763,7 +911,7 @@ A service account provides an identity for processes that run in a Pod. ServiceA
 |**annotations**|{str:str}|Annotations is an unstructured key value map stored with a<br />resource that may be set by external tools to store and retrieve<br />arbitrary metadata. They are not queryable and should be preserved<br />when modifying objects.<br />More info: http://kubernetes.io/docs/user-guide/annotations||
 |**imagePullSecrets**|[{str:str}]|ImagePullSecrets is a list of references to secrets in the same namespace to use for pulling any images in pods that reference this ServiceAccount.<br />More info: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod||
 |**labels**|{str:str}|Labels is a map of string keys and values that can be used to<br />organize and categorize (scope and select) objects.<br />May match selectors of replication controllers and services.<br />More info: http://kubernetes.io/docs/user-guide/labels||
-|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It&#39;s required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
+|**name**|str|The name of the resource.<br />Name must be unique within a namespace. It's required when creating<br />resources, although some resources may allow a client to request the<br />generation of an appropriate name automatically.<br />Name is primarily intended for creation idempotence and configuration<br />definition. Cannot be updated. More info:<br />http://kubernetes.io/docs/user-guide/identifiers#names||
 |**namespace**|str|Namespaces are intended for use in environments with many users spread<br />across multiple teams, or projects.<br />For clusters with a few to tens of users, you should not need to create<br />or think about namespaces at all. Start using namespaces when you need the features they provide.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/||
 |**secrets**|[{str:str}]|Secrets is the list of secrets allowed to be used by pods running using this ServiceAccount.<br />More info: https://kubernetes.io/docs/concepts/configuration/secret||
 #### Examples
@@ -796,20 +944,21 @@ Sidecar describes the sidecar container configuration that is expected to be run
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**args**|[str]|A Container-level attribute.<br />The startup arguments of main process. The image&#39;s cmd is used if this is not provided.||
-|**command**|[str]|A Container-level attribute.<br />The startup command of main process. The image&#39;s entrypoint is used if this is not provided.||
+|**args**|[str]|A Container-level attribute.<br />The startup arguments of main process. The image's cmd is used if this is not provided.||
+|**command**|[str]|A Container-level attribute.<br />The startup command of main process. The image's entrypoint is used if this is not provided.||
 |**env**|[EnvMap](#envmap)|A Container-level attribute.<br />List of environment variables in the container.||
 |**envFrom**|[[EnvFromSource](#envfromsource)]|A Container-level attribute.<br />List of sources to populate environment variables in the container.||
 |**image** `required`|str|A Container-level attribute.<br />Container image name. More info: https://kubernetes.io/docs/concepts/containers/images||
+|**imagePullPolicy**|"Always" | "IfNotPresent" | "Never"|A Container-level attribute.<br />The policy for image pulling. The value of<br />this field must be one of "Always", "IfNotPresent" or<br />"Never". Defaults to "IfNotPresent".||
 |**lifecycle**|[Lifecycle](#lifecycle)|Actions that the management system should take in response to container lifecycle events.<br />Cannot be updated.||
 |**livenessProbe**|[Probe](#probe)|A Container-level attribute.<br />The probe to check whether container is live or not.||
 |**name** `required`|str|A Container-level attribute.<br />The container name. Each container in a pod must have a unique name.||
 |**ports**|[[ContainerPort](#containerport)]|List of ports to expose from the container. Exposing a port here gives the system additional information about the network connections a container uses, but is primarily informational. Not specifying a port here DOES NOT prevent that port from being exposed. Any port which is listening on the default "0.0.0.0" address inside a container will be accessible from the network. Cannot be updated.||
 |**readinessProbe**|[Probe](#probe)|A Container-level attribute.<br />The probe to check whether container is ready or not.||
-|**resource** `required`|str \| [Resource](#resource)|A Pod-level attribute.<br />Sidecar container resource.||
+|**resource** `required`|str | [Resource](#resource)|A Pod-level attribute.<br />Sidecar container resource.||
 |**securityContext**|{str:}|SecurityContext defines the security options the container should be run with.<br />If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.<br />More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/||
 |**startupProbe**|[Probe](#probe)|A Container-level attribute.<br />The probe to indicates that the Pod has successfully initialized.||
-|**workingDir**|str|Container&#39;s working directory. If not specified, the container runtime&#39;s default will be used,<br />which might be configured in the container image. Cannot be updated.||
+|**workingDir**|str|Container's working directory. If not specified, the container runtime's default will be used,<br />which might be configured in the container image. Cannot be updated.||
 #### Examples
 
 ```
@@ -836,8 +985,8 @@ Simple sidecar describes the sidecar container configuration that is expected to
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**extInfo**|{str:}|The extended information.||
-|**name** `required`|str|The sidecar name. e.g. &#39;odp&#39;,&#39;kmi&#39;,&#39;antmonitor&#39;.||
-|**version** `required`|str|The sidecar version. e.g. &#39;v1.2.3&#39;.||
+|**name** `required`|str|The sidecar name. e.g. 'odp','kmi','antmonitor'.||
+|**version** `required`|str|The sidecar version. e.g. 'v1.2.3'.||
 #### Examples
 
 ```
@@ -860,7 +1009,7 @@ DBAttr is the Attributes of cloud database. Attributes ---------- databaseEngine
 |**allocatedStorage**|int||10|
 |**databaseAccountName** `required`|str|||
 |**databaseAccountPassword** `required`|str|||
-|**databaseEngine** `required`|"MySQL" \| "SQLServer" \| "PostgreSQL" \| "MariaDB"||"MySQL"|
+|**databaseEngine** `required`|"MySQL" | "SQLServer" | "PostgreSQL" | "MariaDB"||"MySQL"|
 |**databaseEngineVersion** `required`|str|||
 |**extraMap**|{str:str}|||
 |**instanceType** `required`|str|||
@@ -874,7 +1023,7 @@ DataBase is the schema of cloud database. Attributes ---------- dataBaseType: Li
 | name | type | description | default value |
 | --- | --- | --- | --- |
 |**dataBaseAttr** `required`|[DBAttr](#dbattr)|||
-|**dataBaseType** `required`|"aliyun_rds" \| "aws_rds"|||
+|**dataBaseType** `required`|"aliyun_rds" | "aws_rds"|||
 ### ObjectStorage
 
 ObjectStorage is the schema of clouds object storage. Attributes ---------- objectStorageType: str, cloud object storage name, default is Undefined. objectStorageAttr: str, cloud object storage attribute, default is Undefined.
@@ -903,7 +1052,7 @@ SchedulingStrategy represents scheduling strategy.
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**resource**|str \| [Resource](#resource) \| [ResourceRequirements](#resourcerequirements)|A Pod-level attribute.<br />Main container resource.||
+|**resource**|str | [Resource](#resource) | [ResourceRequirements](#resourcerequirements)|A Pod-level attribute.<br />Main container resource.||
 ### CSI
 
 CSI (Container Storage Interface) represents ephemeral storage that is handled by certain external CSI drivers (Beta feature).
@@ -926,7 +1075,7 @@ ConfigMap represents a secret that should populate this volume.
 | --- | --- | --- | --- |
 |**defaultMode**|int|A Pod-level attribute.<br />Mode bits used to set permissions on created files by default.||
 |**items**|[{str:str}]|A Pod-level attribute.<br />Key-value pairs projected into the volume.||
-|**name** `required`|str|A Pod-level attribute.<br />Name of the configMap in the pod&#39;s namespace to use.||
+|**name** `required`|str|A Pod-level attribute.<br />Name of the configMap in the pod's namespace to use.||
 ### DownwardAPI
 
 DownwardAPI represents a secret that should populate this volume.
@@ -939,13 +1088,13 @@ DownwardAPI represents a secret that should populate this volume.
 |**items**|[{str:}]|A Pod-level attribute.<br />Items is a list of downward API volume file||
 ### EmptyDir
 
-EmptyDir represents a temporary directory that shares a pod&#39;s lifetime.
+EmptyDir represents a temporary directory that shares a pod's lifetime.
 
 #### Attributes
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**medium** `required`|"" \| "Memory"|A Pod-level attribute.<br />What type of storage medium should back this directory.|""|
+|**medium** `required`|"" | "Memory"|A Pod-level attribute.<br />What type of storage medium should back this directory.|""|
 |**sizeLimit**|str|A Pod-level attribute.<br />Total amount of local storage required for this EmptyDir volume.||
 ### FlexVolume
 
@@ -980,7 +1129,7 @@ Mount represents a mounting of a Volume within a container.
 |**container** `required`|str|A Pod-level attribute.<br />Name of container to mount, * represents all containers.|"*"|
 |**path** `required`|str|A Container-level attribute.<br />Path within the container at which the volume should be mounted.||
 |**readOnly**|bool|A Container-level attribute.<br />Mounted read-only if true, read-write otherwise.|False|
-|**subPath**|str|A Container-level attribute.<br />Path within the volume from which the container&#39;s volume should be mounted.||
+|**subPath**|str|A Container-level attribute.<br />Path within the volume from which the container's volume should be mounted.||
 ### Secret
 
 Secret represents a secret that should populate this volume.
@@ -991,7 +1140,7 @@ Secret represents a secret that should populate this volume.
 | --- | --- | --- | --- |
 |**defaultMode**|int|A Pod-level attribute.<br />Mode bits used to set permissions on created files by default.||
 |**items**|[{str:str}]|A Pod-level attribute.<br />Key-value pairs projected into the volume.||
-|**secretName** `required`|str|A Pod-level attribute.<br />Name of the secret in the pod&#39;s namespace to use.||
+|**secretName** `required`|str|A Pod-level attribute.<br />Name of the secret in the pod's namespace to use.||
 ### Volume
 
 Volume represents a named volume and corresponding mounts in containers.
@@ -1000,9 +1149,9 @@ Volume represents a named volume and corresponding mounts in containers.
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**mounts**|[[Mount](#mount)]|Volumes to mount into the container&#39;s filesystem.||
-|**name** `required`|str|Volume&#39;s name. Must be a DNS_LABEL and unique within the pod.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names||
-|**volumeSource** `required`|[EmptyDir](#emptydir) \| [Secret](#secret) \| [ConfigMap](#configmap) \| [FlexVolume](#flexvolume) \| [HostPath](#hostpath) \| [DownwardAPI](#downwardapi) \| [CSI](#csi)|VolumeSource represents the location and type of the mounted volume.||
+|**mounts**|[[Mount](#mount)]|Volumes to mount into the container's filesystem.||
+|**name** `required`|str|Volume's name. Must be a DNS_LABEL and unique within the pod.<br />More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names||
+|**volumeSource** `required`|[EmptyDir](#emptydir) | [Secret](#secret) | [ConfigMap](#configmap) | [FlexVolume](#flexvolume) | [HostPath](#hostpath) | [DownwardAPI](#downwardapi) | [CSI](#csi)|VolumeSource represents the location and type of the mounted volume.||
 #### Examples
 
 ```
@@ -1100,8 +1249,8 @@ ApplicationBuilder contains the workload labels, selector and environments about
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**envs** `required`|[{str:}]||[<br />    {<br />        name: "APP_NAME"<br />        value: metadata.__META_APP_NAME<br />    }<br />    {<br />        name: "ENVIRONMENT"<br />        value: metadata.__META_ENV_TYPE_NAME<br />    }<br />    {<br />        name: "INSTANCE"<br />        value: "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()<br />    }<br />    {<br />        name: "CLUSTER"<br />        value: metadata.__META_CLUSTER_NAME<br />    }<br />]|
-|**labels** `required`|{str:str}||{<br />    "app.kubernetes.io/name": metadata.__META_APP_NAME<br />    "app.kubernetes.io/env": metadata.__META_ENV_TYPE_NAME<br />    "app.kubernetes.io/instance": "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()<br />    "cluster.x-k8s.io/cluster-name": metadata.__META_CLUSTER_NAME<br />}|
+|**envs** `required`|[EnvMap](#envmap)||{<br />    APP_NAME: {<br />        value: metadata.__META_APP_NAME<br />    }<br />    ENVIRONMENT: {<br />        value: metadata.__META_ENV_TYPE_NAME<br />    }<br />    INSTANCE: {<br />        value: "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()<br />    }<br />    if metadata.__META_CLUSTER_NAME:<br />        CLUSTER: {<br />            value: metadata.__META_CLUSTER_NAME<br />        }<br />}|
+|**labels** `required`|{str:str}||{<br />    "app.kubernetes.io/name": metadata.__META_APP_NAME<br />    "app.kubernetes.io/env": metadata.__META_ENV_TYPE_NAME<br />    "app.kubernetes.io/instance": "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()<br />    if metadata.__META_CLUSTER_NAME:<br />        "cluster.x-k8s.io/cluster-name": metadata.__META_CLUSTER_NAME<br />}|
 |**selector** `required`|{str:str}||labels|
 ### Str2ResourceRequirements
 
@@ -1109,7 +1258,7 @@ ApplicationBuilder contains the workload labels, selector and environments about
 
 | name | type | description | default value |
 | --- | --- | --- | --- |
-|**resource** `required`|[{str:}]||[{<br />    cpu = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[-1])?.strip()<br />    }<br />} if "cpu" in item else ({<br />    memory = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[-1])?.strip()<br />    }<br />} if "memory" in item else ({<br />    disk = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) &gt; 1 else item.split("&lt;")?[-1])?.strip()<br />    }<br />} if "disk" in item else Undefined)) for item in schedulingResourceItems]|
+|**resource** `required`|[{str:}]||[{<br />    cpu = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[-1])?.strip()<br />    }<br />} if "cpu" in item else ({<br />    memory = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[-1])?.strip()<br />    }<br />} if "memory" in item else ({<br />    disk = {<br />        requests = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[0])?.strip()<br />        limits = (item.split("=")?[1] if len(item.split("=")) > 1 else item.split("<")?[-1])?.strip()<br />    }<br />} if "disk" in item else Undefined)) for item in schedulingResourceItems]|
 |**resourceRequirementsUnit**|[ResourceRequirements](#resourcerequirements)||resourcePara as res.ResourceRequirements if typeof(resourcePara) == "ResourceRequirements" else None|
 |**resourceStr**|str||resourcePara as str if typeof(resourcePara) == "str" else None|
 |**resourceUnit**|[Resource](#resource)||resourcePara as res.Resource if typeof(resourcePara) == "Resource" else None|
