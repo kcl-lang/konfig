@@ -7,12 +7,18 @@ import models.kube.protocol
 mixin ServiceMixin for protocol.ServerProtocol:
     if config.services:
         assert "workloadType" in config, "config must contain `workloadType` attribute"
+        # Workaround: pre-compute len(config.services) outside the
+        # metadata override dict. With kcl 0.12.x, reading `config.X`
+        # inside a value expression that is the right-hand side of `or`
+        # (after an optional access `?.X`) of a dict key whose sibling
+        # key is a `MetadataBuilder(_) | {...}` resolves to Undefined.
+        _singleService: bool = len(config.services) == 1
 
         kubernetes: resource.ResourceMapping {
             Service = [v1.Service {
                 metadata: utils.MetadataBuilder(_s) | {
-                    name = _s?.name or (workloadName if len(config.services) == 1 else "{}-{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME, _i))
-                    namespace = _s?.namespace or (workloadNamespace if len(config.services) == 1 else "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME))
+                    name = _s?.name or (workloadName if _singleService else "{}-{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME, _i))
+                    namespace = _s?.namespace or (workloadNamespace if _singleService else "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME))
                 }
                 spec: {
                     clusterIP = _s?.clusterIP if _s?.type in ["ClusterIP", "NodePort", "LoadBalancer", None, Undefined] else Undefined
