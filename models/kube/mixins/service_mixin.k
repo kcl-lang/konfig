@@ -7,12 +7,13 @@ import models.kube.protocol
 mixin ServiceMixin for protocol.ServerProtocol:
     if config.services:
         assert "workloadType" in config, "config must contain `workloadType` attribute"
-        # Workaround: pre-compute len(config.services) outside the
-        # metadata override dict. With kcl 0.12.x, reading `config.X`
-        # inside a value expression that is the right-hand side of `or`
-        # (after an optional access `?.X`) of a dict key whose sibling
-        # key is a `MetadataBuilder(_) | {...}` resolves to Undefined.
+        # Workaround: pre-compute reads of `config.X` outside the
+        # dict literal that also contains `MetadataBuilder(_) | {...}`
+        # sibling keys. With kcl 0.12.x, evaluating such reads inside
+        # the dict (especially as the right-hand side of `or` after an
+        # optional access `?.X`) returns Undefined.
         _singleService: bool = len(config.services) == 1
+        _workloadType: str = config.workloadType
 
         kubernetes: resource.ResourceMapping {
             Service = [v1.Service {
@@ -31,7 +32,7 @@ mixin ServiceMixin for protocol.ServerProtocol:
                     loadBalancerSourceRanges = _s?.loadBalancerSourceRanges
                     ports = _s?.ports
                     publishNotReadyAddresses = _s?.publishNotReadyAddresses
-                    selector = _s?.selector or kubernetes?[config.workloadType]?[0]?.spec?.selector?.matchLabels
+                    selector = _s?.selector or kubernetes?[_workloadType]?[0]?.spec?.selector?.matchLabels
                     sessionAffinity = _s?.sessionAffinity
                     sessionAffinityConfig = _s?.sessionAffinityConfig if _s?.sessionAffinity == "ClientIP" else Undefined
                     type = _s?.type
