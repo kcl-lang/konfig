@@ -1,14 +1,14 @@
 import k8s.api.apps.v1 as appsv1
 import k8s.api.core.v1 as corev1
-import models.kube.frontend.server
-import models.kube.mixins
-import models.kube.metadata
-import models.kube.utils
+import konfig.models.kube.frontend as frontend
+import konfig.models.kube.mixins
+import konfig.models.kube.metadata
+import konfig.models.kube.utils
 import models.kube.resource
 
-schema ServerBackend[inputConfig: server.Server]:
-    """ServerBackend converts the user-written front-end model `Server` into a 
-    collection of k8s resources and places the resource collection into 
+schema ServerBackend[inputConfig: frontend.Server]:
+    """ServerBackend converts the user-written front-end model `Server` into a
+    collection of k8s resources and places the resource collection into
     the `k8s` attribute.
     """
     mixin [
@@ -20,9 +20,9 @@ schema ServerBackend[inputConfig: server.Server]:
         mixins.IngressMixin,
         mixins.ServiceAccountMixin,
     ]
-    
+
     # Store the input config parameter, ensure it can be seen in protocol and mixin.
-    config: server.Server = inputConfig
+    config: frontend.Server = inputConfig
     # Workload name.
     workloadName: str = config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
     # Workload namespace
@@ -57,39 +57,47 @@ schema ServerBackend[inputConfig: server.Server]:
     _applicationLabel: {str: str} = {
         "app.k8s.io/component": workloadName
     }
+    # Workaround: build the spec dict in its own statement, then reference
+    # it inside the workloadAttributes dict. Reading any `config.X` inside
+    # a dict literal that also contains `MetadataBuilder(config) | {...}`
+    # (a lambda call followed by a merge override) triggers an evaluator
+    # quirk where the attribute resolves to `Undefined`. By isolating the
+    # spec construction we keep all `config.X` reads outside that bad
+    # pattern.
+    _spec: {str:} = {
+        replicas = config.replicas
+        if config.useBuiltInSelector:
+            selector.matchLabels: app.selector | config.selector | _applicationLabel
+        else:
+            selector.matchLabels: config.selector
+        template = {
+            metadata = {
+                if config.useBuiltInLabels:
+                    labels = app.labels | _applicationLabel
+                **config.podMetadata
+            }
+            spec = {
+                containers = [mainContainer] + (sidecarContainers or [])
+                initContainers = initContainers
+                if config.volumes: volumes = [
+                    utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
+                ]
+                if config.serviceAccount:
+                    serviceAccountName = config.serviceAccount.name
+                if config.affinity:
+                    affinity = config.affinity
+            }
+        }
+        if config.deploymentStrategy:
+            strategy = config.deploymentStrategy
+    }
     # Construct workload attributes.
     workloadAttributes: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
             name = workloadName
             namespace = workloadNamespace
         }
-        spec = {
-            replicas = config.replicas
-            if config.useBuiltInSelector: 
-                selector.matchLabels: app.selector | config.selector | _applicationLabel
-            else:
-                selector.matchLabels: config.selector
-            template = {
-                metadata = {
-                    if config.useBuiltInLabels:
-                        labels = app.labels | _applicationLabel
-                    **config.podMetadata
-                }
-                spec = {
-                    containers = [mainContainer] + (sidecarContainers or [])
-                    initContainers = initContainers
-                    if config.volumes: volumes = [
-                        utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
-                    ]
-                    if config.serviceAccount:
-                        serviceAccountName = config.serviceAccount.name
-                    if config.affinity: 
-                        affinity = config.affinity
-                }
-            }
-            if config.deploymentStrategy:
-                strategy = config.deploymentStrategy
-        }
+        spec = _spec
     }
 
     _workloadInstance?: appsv1.Deployment | appsv1.StatefulSet
