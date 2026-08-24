@@ -57,47 +57,39 @@ schema ServerBackend[inputConfig: frontend.Server]:
     _applicationLabel: {str: str} = {
         "app.k8s.io/component": workloadName
     }
-    # Workaround: build the spec dict in its own statement, then reference
-    # it inside the workloadAttributes dict. Reading any `config.X` inside
-    # a dict literal that also contains `MetadataBuilder(config) | {...}`
-    # (a lambda call followed by a merge override) triggers an evaluator
-    # quirk where the attribute resolves to `Undefined`. By isolating the
-    # spec construction we keep all `config.X` reads outside that bad
-    # pattern.
-    _spec: {str:} = {
-        replicas = config.replicas
-        if config.useBuiltInSelector:
-            selector.matchLabels: app.selector | config.selector | _applicationLabel
-        else:
-            selector.matchLabels: config.selector
-        template = {
-            metadata = {
-                if config.useBuiltInLabels:
-                    labels = app.labels | _applicationLabel
-                **config.podMetadata
-            }
-            spec = {
-                containers = [mainContainer] + (sidecarContainers or [])
-                initContainers = initContainers
-                if config.volumes: volumes = [
-                    utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
-                ]
-                if config.serviceAccount:
-                    serviceAccountName = config.serviceAccount.name
-                if config.affinity:
-                    affinity = config.affinity
-            }
-        }
-        if config.deploymentStrategy:
-            strategy = config.deploymentStrategy
-    }
     # Construct workload attributes.
     workloadAttributes: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
             name = workloadName
             namespace = workloadNamespace
         }
-        spec = _spec
+        spec = {
+            replicas = config.replicas
+            if config.useBuiltInSelector:
+                selector.matchLabels: app.selector | config.selector | _applicationLabel
+            else:
+                selector.matchLabels: config.selector
+            template = {
+                metadata = {
+                    if config.useBuiltInLabels:
+                        labels = app.labels | _applicationLabel
+                    **config.podMetadata
+                }
+                spec = {
+                    containers = [mainContainer] + (sidecarContainers or [])
+                    initContainers = initContainers
+                    if config.volumes: volumes = [
+                        utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
+                    ]
+                    if config.serviceAccount:
+                        serviceAccountName = config.serviceAccount.name
+                    if config.affinity:
+                        affinity = config.affinity
+                }
+            }
+            if config.deploymentStrategy:
+                strategy = config.deploymentStrategy
+        }
     }
 
     _workloadInstance?: appsv1.Deployment | appsv1.StatefulSet
