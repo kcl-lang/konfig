@@ -1,14 +1,14 @@
 import k8s.api.apps.v1 as appsv1
 import k8s.api.core.v1 as corev1
-import models.kube.frontend.server
-import models.kube.mixins
-import models.kube.metadata
-import models.kube.utils
+import konfig.models.kube.frontend as frontend
+import konfig.models.kube.mixins
+import konfig.models.kube.metadata
+import konfig.models.kube.utils
 import models.kube.resource
 
-schema ServerBackend[inputConfig: server.Server]:
-    """ServerBackend converts the user-written front-end model `Server` into a 
-    collection of k8s resources and places the resource collection into 
+schema ServerBackend[inputConfig: frontend.Server]:
+    """ServerBackend converts the user-written front-end model `Server` into a
+    collection of k8s resources and places the resource collection into
     the `k8s` attribute.
     """
     mixin [
@@ -20,9 +20,9 @@ schema ServerBackend[inputConfig: server.Server]:
         mixins.IngressMixin,
         mixins.ServiceAccountMixin,
     ]
-    
+
     # Store the input config parameter, ensure it can be seen in protocol and mixin.
-    config: server.Server = inputConfig
+    config: frontend.Server = inputConfig
     # Workload name.
     workloadName: str = config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
     # Workload namespace
@@ -57,6 +57,11 @@ schema ServerBackend[inputConfig: server.Server]:
     _applicationLabel: {str: str} = {
         "app.k8s.io/component": workloadName
     }
+    # Workaround: pre-compute config.replicas before the dict that contains
+    # the MetadataBuilder lambda+merge call. Reading `config.replicas` inside
+    # the same dict literal (after the lambda+merge) triggers an evaluator
+    # quirk where the attribute is incorrectly resolved to Undefined.
+    _replicas: int = config.replicas
     # Construct workload attributes.
     workloadAttributes: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
@@ -64,7 +69,7 @@ schema ServerBackend[inputConfig: server.Server]:
             namespace = workloadNamespace
         }
         spec = {
-            replicas = config.replicas
+            replicas = _replicas
             if config.useBuiltInSelector: 
                 selector.matchLabels: app.selector | config.selector | _applicationLabel
             else:

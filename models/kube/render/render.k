@@ -1,6 +1,6 @@
-import models.kube.frontend
-import models.kube.frontend.rbac
-import models.kube.backend
+import konfig.models.kube.frontend
+import konfig.models.kube.frontend.rbac
+import konfig.models.kube.backend
 import models.kube.resource
 import k8s.api.core.v1 as corev1
 
