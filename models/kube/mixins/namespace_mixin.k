@@ -25,7 +25,7 @@ mixin NamespaceMixin for protocol.ServerProtocol:
         kubernetes: resource.ResourceMapping {
             Namespace = [
                 v1.Namespace {
-                    metadata.name = config?.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME)
+                    metadata.name = config?.namespace or "{}-{}".format(metadata.META_APP_NAMESPACE, metadata.META_ENV_TYPE_NAME)
                 }
             ]
         }

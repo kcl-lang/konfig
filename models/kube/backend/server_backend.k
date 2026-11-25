@@ -24,9 +24,9 @@ schema ServerBackend[inputConfig: frontend.Server]:
     # Store the input config parameter, ensure it can be seen in protocol and mixin.
     config: frontend.Server = inputConfig
     # Workload name.
-    workloadName: str = config.name or "{}-{}".format(metadata.__META_APP_NAME, metadata.__META_ENV_TYPE_NAME).lower()
+    workloadName: str = config.name or "{}-{}".format(metadata.META_APP_NAME, metadata.META_ENV_TYPE_NAME).lower()
     # Workload namespace
-    workloadNamespace: str = config.namespace or "{}-{}".format(metadata.__META_APP_NAMESPACE, metadata.__META_ENV_TYPE_NAME).lower()
+    workloadNamespace: str = config.namespace or "{}-{}".format(metadata.META_APP_NAMESPACE, metadata.META_ENV_TYPE_NAME).lower()
     # App variable contains labels, selector and environments.
     app: utils.ApplicationBuilder = utils.ApplicationBuilder {}
     # Main containers and sidecar contrainers.
@@ -57,39 +57,45 @@ schema ServerBackend[inputConfig: frontend.Server]:
     _applicationLabel: {str: str} = {
         "app.k8s.io/component": workloadName
     }
+    # Build spec outside the dict that contains `MetadataBuilder(config) | {...}`.
+    # On KCL 0.12.8 (kcl-lang/kcl#2130, discussion kcl-lang/kcl#2126) a sibling
+    # `config.replicas` read in that dict evaluates to Undefined and the
+    # Deployment schema rejects it. KCL 0.12.10+ fixed the evaluator; keeping
+    # the read outside the merge still produces replicas: 1 on both.
+    _spec: {str:} = {
+        replicas = config.replicas
+        if config.useBuiltInSelector:
+            selector.matchLabels: app.selector | config.selector | _applicationLabel
+        else:
+            selector.matchLabels: config.selector
+        template = {
+            metadata = {
+                if config.useBuiltInLabels:
+                    labels = app.labels | _applicationLabel
+                **config.podMetadata
+            }
+            spec = {
+                containers = [mainContainer] + (sidecarContainers or [])
+                initContainers = initContainers
+                if config.volumes: volumes = [
+                    utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
+                ]
+                if config.serviceAccount:
+                    serviceAccountName = config.serviceAccount.name
+                if config.affinity:
+                    affinity = config.affinity
+            }
+        }
+        if config.deploymentStrategy:
+            strategy = config.deploymentStrategy
+    }
     # Construct workload attributes.
     workloadAttributes: {str:} = {
         metadata = utils.MetadataBuilder(config) | {
             name = workloadName
             namespace = workloadNamespace
         }
-        spec = {
-            replicas = config.replicas
-            if config.useBuiltInSelector:
-                selector.matchLabels: app.selector | config.selector | _applicationLabel
-            else:
-                selector.matchLabels: config.selector
-            template = {
-                metadata = {
-                    if config.useBuiltInLabels:
-                        labels = app.labels | _applicationLabel
-                    **config.podMetadata
-                }
-                spec = {
-                    containers = [mainContainer] + (sidecarContainers or [])
-                    initContainers = initContainers
-                    if config.volumes: volumes = [
-                        utils.to_kube_volume(v) for v in config.volumes if v.volumeSource
-                    ]
-                    if config.serviceAccount:
-                        serviceAccountName = config.serviceAccount.name
-                    if config.affinity:
-                        affinity = config.affinity
-                }
-            }
-            if config.deploymentStrategy:
-                strategy = config.deploymentStrategy
-        }
+        spec = _spec
     }
 
     _workloadInstance?: appsv1.Deployment | appsv1.StatefulSet
